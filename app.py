@@ -3,10 +3,15 @@ from pydantic import BaseModel
 import uvicorn
 import os
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import (
+    TranscriptsDisabled,
+    NoTranscriptFound,
+    VideoUnavailable,
+    CouldNotRetrieveTranscript,
+)
 
 app = FastAPI()
 
-# 1) 유튜브 검색 엔드포인트
 class Query(BaseModel):
     query: str
     max_results: int
@@ -23,7 +28,6 @@ async def youtube_scraper(query: Query):
         ]
     }
 
-# 2) 자막 가져오기 엔드포인트
 class VideoIDRequest(BaseModel):
     video_id: str
 
@@ -32,22 +36,21 @@ async def get_subtitles(req: VideoIDRequest):
     try:
         transcript = YouTubeTranscriptApi.get_transcript(
             req.video_id,
-            languages=["ko", "en"]
+            languages=["ko", "en"],
         )
         full_text = "\n".join(seg["text"] for seg in transcript)
-        return {
-            "video_id": req.video_id,
-            "subtitles": full_text
-        }
+        return {"video_id": req.video_id, "subtitles": full_text}
+    except (TranscriptsDisabled, NoTranscriptFound, VideoUnavailable, CouldNotRetrieveTranscript):
+        # 자막이 없거나 차단됐을 때 빈 문자열로 대응
+        return {"video_id": req.video_id, "subtitles": ""}
     except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        # 그 외 예기치 못한 에러는 500으로 반환
+        raise HTTPException(status_code=500, detail=str(e))
 
-# 3) 헬스체크 루트
 @app.get("/")
 def root():
     return {"message": "✅ FastAPI 서버 작동 중!"}
 
-# 4) Render용 포트 바인딩
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("app:app", host="0.0.0.0", port=port)
