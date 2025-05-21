@@ -21,5 +21,8 @@ def root():
     return {"message": "✅ FastAPI 서버 작동 중!"}
 
 # ✅ 반드시 아래 코드 추가!
+import os
+
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 8000))  # Render가 할당한 포트 사용
+    uvicorn.run("app:app", host="0.0.0.0", port=port)
